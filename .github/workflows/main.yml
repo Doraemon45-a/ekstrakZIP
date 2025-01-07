@@ -1,10 +1,10 @@
-name: Extract and Upload RAR to Google Drive
+name: Extract and Upload RAR/ZIP to Google Drive
 
 on:
   workflow_dispatch:
     inputs:
       rar_url:
-        description: 'URL of the RAR file'
+        description: 'URL of the RAR or ZIP file'
         required: true
         type: string
       rar_password:
@@ -33,30 +33,34 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt  # Pastikan Anda sudah memiliki file requirements.txt
 
-    # Step 4: Install unrar
-    - name: Install unrar
-      run: sudo apt-get update && sudo apt-get install unrar -y  # Install unrar pada runner Ubuntu
+    # Step 4: Install unrar and unzip
+    - name: Install unrar and unzip
+      run: sudo apt-get update && sudo apt-get install unrar unzip -y  # Install unrar dan unzip pada runner Ubuntu
 
     # Step 5: Create token.pickle from secret
     - name: Create token.pickle
       run: |
         echo "${{ secrets.GDRIVE_TOKEN }}" | base64 --decode > token.pickle  # Decode dan simpan token.pickle
 
-    # Step 6: Download RAR file
-    - name: Download RAR file
+    # Step 6: Download RAR or ZIP file
+    - name: Download file
       run: |
-        curl -L "${{ github.event.inputs.rar_url }}" -o downloaded.rar  # Download file RAR menggunakan URL yang diinput
+        curl -L "${{ github.event.inputs.rar_url }}" -o downloaded.zip  # Download file menggunakan URL yang diinput
 
-    # Step 7: Extract RAR file with or without password
-    - name: Extract RAR file
+    # Step 7: Extract file (ZIP or RAR)
+    - name: Extract file
       run: |
         mkdir extracted
-        if [ -z "${{ github.event.inputs.rar_password }}" ]; then
-          # Jika tidak ada password, ekstrak tanpa password
-          unrar x downloaded.rar extracted/
-        else
-          # Jika ada password, ekstrak dengan password
-          unrar x -p"${{ github.event.inputs.rar_password }}" downloaded.rar extracted/
+        if [[ "${{ github.event.inputs.rar_url }}" == *.rar ]]; then
+          # Jika file RAR, ekstrak dengan password jika ada
+          if [ -z "${{ github.event.inputs.rar_password }}" ]; then
+            unrar x downloaded.zip extracted/  # Tanpa password
+          else
+            unrar x -p"${{ github.event.inputs.rar_password }}" downloaded.zip extracted/  # Dengan password
+          fi
+        elif [[ "${{ github.event.inputs.rar_url }}" == *.zip ]]; then
+          # Jika file ZIP, ekstrak tanpa password
+          unzip downloaded.zip -d extracted/
         fi
 
     # Step 8: Upload extracted files to Google Drive
@@ -67,4 +71,4 @@ jobs:
     # Step 9: Clean up
     - name: Clean up
       run: |
-        rm -rf extracted downloaded.rar  # Bersihkan file yang sudah tidak digunakan
+        rm -rf extracted downloaded.zip  # Bersihkan file yang sudah tidak digunakan
